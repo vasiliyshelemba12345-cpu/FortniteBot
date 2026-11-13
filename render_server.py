@@ -23,20 +23,28 @@ async def handler(websocket):
                     await control_ws.send("CLIENT_CONNECTED")
             elif message.startswith("IMG:"):
                 if control_ws:
-                    await control_ws.send(message)
+                    try:
+                        await control_ws.send(message)
+                    except:
+                        control_ws = None
             elif message.startswith("CMD:"):
                 if client_ws:
-                    await client_ws.send(message)
+                    try:
+                        await client_ws.send(message)
+                    except:
+                        client_ws = None
                     
     except websockets.exceptions.ConnectionClosed:
         print("Соединение закрыто")
     finally:
         if websocket == client_ws:
             client_ws = None
-            if control_ws: await control_ws.send("CLIENT_DISCONNECTED")
+            if control_ws: 
+                try: await control_ws.send("CLIENT_DISCONNECTED")
+                except: pass
         elif websocket == control_ws:
             control_ws = None
-
+            
 async def main():
     port = int(os.environ.get("PORT", 8080))
     async with websockets.serve(handler, "0.0.0.0", port):
