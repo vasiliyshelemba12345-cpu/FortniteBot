@@ -4,30 +4,27 @@ import os
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-# --- Блок для обмана UptimeRobot и Render (HTTP Health Check) ---
+# --- HTTP-сервер для UptimeRobot (слушает отдельный порт, не конфликтует с WebSocket) ---
 class HealthCheckHandler(BaseHTTPRequestHandler):
-    # Отвечаем на GET запросы
     def do_GET(self):
         self.send_response(200)
         self.send_header("Content-type", "text/plain")
         self.end_headers()
         self.wfile.write(b"OK")
-        
-    # Отвечаем на HEAD запросы (именно их шлет UptimeRobot)
+
     def do_HEAD(self):
         self.send_response(200)
         self.send_header("Content-type", "text/plain")
         self.end_headers()
 
-    # Отключаем логирование, чтобы не засорять консоль Render
     def log_message(self, format, *args):
-        pass
+        pass  # Отключаем логи, чтобы не засорять консоль Render
 
 def run_health_check():
-    # Render передает порт через переменную окружения PORT
-    port = int(os.environ.get("PORT", 8080))
+    # ВАЖНО: используем отдельный порт 8080, не трогаем PORT от Render
+    port = 8080
     server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    print(f"HTTP-сервер для проверки запущен на порту {port}")
+    print(f"HTTP health check запущен на порту {port}")
     server.serve_forever()
 # ----------------------------------------------------------------
 
@@ -66,18 +63,15 @@ async def handler(websocket):
         print("Соединение закрыто")
 
 async def main():
-    # Render сам подставляет нужный порт в переменную окружения PORT.
-    # Если её нет (локальный запуск), используем 8080.
-    port = int(os.environ.get("PORT", 8080))
-    
-    # Запускаем WebSocket сервер
+    # WebSocket-сервер занимает порт, который выдаёт Render
+    port = int(os.environ.get("PORT", 10000))
     async with websockets.serve(handler, "0.0.0.0", port):
         print(f"WebSocket сервер запущен на порту {port}")
-        await asyncio.Future()  # Работаем бесконечно
+        await asyncio.Future()
 
 if __name__ == "__main__":
-    # 1. Запускаем фоновый HTTP-сервер для UptimeRobot (в отдельном потоке)
+    # Запускаем HTTP-проверку в фоновом потоке (порт 8080)
     threading.Thread(target=run_health_check, daemon=True).start()
-    
-    # 2. Запускаем основной WebSocket сервер
+
+    # Запускаем основной WebSocket-сервер (порт от Render)
     asyncio.run(main())
